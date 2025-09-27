@@ -16,10 +16,7 @@ import (
 	"sync"
 )
 
-var (
-	Path      = pathFiles()
-	UserAgent = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
-)
+var UserAgent = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
 
 const (
 	baseUrl    = "https://setpp.kemenkeu.go.id"
@@ -83,6 +80,8 @@ func GetFile(id int) error {
 	var attempt int
 	var filename string
 
+	path := pathFiles()
+
 retry:
 	if attempt > 3 {
 		return fmt.Errorf("failed getting file id=%d filename=%s", id, filename)
@@ -115,7 +114,7 @@ retry:
 
 	disp := resp.Header.Get("Content-Disposition")
 	filename = strings.Split(disp, "=")[1]
-	filepath := Path + filename
+	filepath := path + filename
 	file, err := os.Create(filepath)
 	if err != nil {
 		return err
