@@ -55,6 +55,7 @@ func (q *Query) FetchData() (*Raw, error) {
 	req.Header.Set("Referer", risalahUrl)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
 	req.Header.Set("User-Agent", UserAgent)
+	req.Close = true
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
