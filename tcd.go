@@ -1,156 +1,182 @@
 package tcd
 
 import (
-	"os"
-	"io"
-	"fmt"
-	"log"
-	"sync"
-	"strconv"
-	"net/http"
+	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"net/url"
+	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
 )
 
 var (
-	Path = _path_files()
-	UserAgent = "put_yours_here"
+	Path      = pathFiles()
+	UserAgent = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
 )
 
 const (
-	url_data = "https://setpp.kemenkeu.go.id/risalah/Putusan_Read?"
-	url_file = "https://setpp.kemenkeu.go.id/risalah/ambilFileDariDisk/"
+	baseUrl    = "https://setpp.kemenkeu.go.id"
+	risalahUrl = baseUrl + "/risalah"
 )
 
-func New() *Q {
-	q := new(Q)
-	q.Sort = IDDesc
-	q.Page = "1"
-	q.PageSize = "5"
-	q.Group = ""
-	q.Filter = ""
-
-	return q
+func New() *Query {
+	return &Query{
+		Sort:     IDDesc,
+		Page:     1,
+		PageSize: 5,
+	}
 }
 
-func (q *Q) FetchData() *Raw {
-	form := "?sort=%s&page=%s&pageSize=%s&group=%s&filter=%s"
-	formFormated := fmt.Sprintf(
-		form,
-		q.Sort,
-		q.Page,
-		q.PageSize,
-		q.Group,
-		q.Filter,
-	)
-	url := url_data+formFormated
+func (q *Query) FetchData() (*Raw, error) {
+	form := url.Values{}
+	form.Add("sort", string(q.Sort))
+	form.Add("page", strconv.Itoa(q.Page))
+	form.Add("pageSize", strconv.Itoa(q.PageSize))
+	form.Add("group", q.Group)
+	form.Add("filter", q.filter)
 
-	req, err := http.NewRequest("POST", url, nil)
+	formEncoded := form.Encode()
+	payload := bytes.NewBufferString(formEncoded)
+
+	req, err := http.NewRequest("POST", risalahUrl+"/Putusan_Read", payload)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
+
 	req.Header.Set("Connection", "keep-alive")
-	req.Header.Set("Content-Length", "39")
+	req.Header.Set("Origin", baseUrl)
+	req.Header.Set("Referer", risalahUrl)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
 	req.Header.Set("User-Agent", UserAgent)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-
-	if resp.StatusCode != 200 {
-		log.Fatal("not ok!")
-	}
-
 	defer resp.Body.Close()
 
-	var result Raw
-	err = json.NewDecoder(resp.Body).Decode(&result)
-	if err != nil {
-		panic(err)
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("status response %s", resp.Status)
 	}
-	return &result
+
+	var result Raw
+	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	if result.Total == 0 {
+		return nil, errors.New("empty data results")
+	}
+
+	return &result, nil
 }
 
-func GetFile(id int) {
-	url := url_file+strconv.Itoa(id)
+func GetFile(id int) error {
+	var attempt int
+	var filename string
+
+retry:
+	if attempt > 3 {
+		return fmt.Errorf("failed getting file id=%d filename=%s", id, filename)
+	}
+
+	url := risalahUrl + "/ambilFileDariDisk/" + strconv.Itoa(id)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	
+
 	req.Header.Set("Accept-Encoding", "gzip, deflate, br, zstd")
 	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Origin", baseUrl)
+	req.Header.Set("Referer", risalahUrl)
 	req.Header.Set("User-Agent", UserAgent)
 	req.Close = true
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		log.Fatal(resp.StatusCode)
+		return fmt.Errorf("status response %s", resp.Status)
 	}
 
-	log.Printf("getting file %d...", id)
-	filename := Path+strconv.Itoa(id)+".pdf"
-	file, err := os.Create(filename)
+	disp := resp.Header.Get("Content-Disposition")
+	filename = strings.Split(disp, "=")[1]
+	filepath := Path + filename
+	file, err := os.Create(filepath)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer file.Close()
 
 	_, err = io.Copy(file, resp.Body)
-	if err != nil {
-		panic(err)
+	switch err {
+	case nil:
+		log.Printf("done file id=%d filename=%s", id, filename)
+		return nil
+	case io.ErrUnexpectedEOF:
+		attempt++
+		goto retry
+	default:
+		return err
 	}
-	
-	return
 }
 
-//error EOF if pagesize >5
-func (r *Raw) GetFileBulk() {
+func (r *Raw) GetFileBulk() error {
+	amount := len(r.Data)
+	if amount == 0 {
+		return errors.New("empty data list")
+	}
+
+	errCh := make(chan error, 1)
 	var wg sync.WaitGroup
 
-	done := make(chan int, len(r.Data))
-
-	for i := 0; i < len(r.Data); i++ {
+	for i := 0; i < amount; i++ {
 		wg.Add(1)
-
 		go func(id int) {
 			defer wg.Done()
 
-			GetFile(id)
-
-			done <- id
+			errCh <- GetFile(id)
 		}(r.Data[i].ID)
 	}
 
-	for i := 0; i < len(r.Data); i++ {
-		log.Printf("done %d!", <-done)
+	go func() {
+		wg.Wait()
+		close(errCh)
+	}()
+
+	errs := []error{}
+	for err := range errCh {
+		errs = append(errs, err)
 	}
 
-	wg.Wait()
-	return
+	return errors.Join(errs...)
 }
 
-func _path_files() string {
+func pathFiles() string {
 	path, err := filepath.Abs(".")
 	if err != nil {
 		panic(err)
 	}
 
-	path = path + `\files\`
+	path = path + "/files/"
 
 	_, err = os.Stat(path)
 	if err != nil && os.IsNotExist(err) {
-		if err = os.Mkdir("files", 0755); err != nil {
+		if err = os.Mkdir("files", 0o755); err != nil {
 			panic(err)
 		}
 	}

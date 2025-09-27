@@ -1,43 +1,52 @@
 package tcd
 
-const (
-	IDDesc = "id-desc"
-	AbsrisDesc = "absris-desc"
-	NoPutDesc = "noput-desc"
-
-	IDAsc = "id-asc"
-	AbsrisAsc = "absris-asc"
-	NoPutAsc = "noput-asc"
-
-	_contain_noput = "noput~contains~"
-	_contain_absris = "absris~contains~"
-	_and = "~and~"
+import (
+	"errors"
 )
 
-func (q *Q) FilterByNoPut(noput string) {
-	if q.Filter != "" {q.Filter = ""}
+const (
+	containNoput  = "noput~contains~"
+	containAbsris = "absris~contains~"
+	and           = "~and~"
+)
 
-	noput = "'"+noput+"'"
-	q.Filter = _contain_noput + noput
+func (q *Query) FilterByNoPut(noput string) error {
+	if noput == "" {
+		return errors.New("empty noput arguments")
+	}
 
-	return
+	if q.filter != "" {
+		q.filter = ""
+	}
+
+	q.filter = containNoput + "'" + noput + "'"
+	return nil
 }
 
-func (q *Q) FilterByAbsris(absris string) {
-	if q.Filter != "" {q.Filter = ""}
+func (q *Query) FilterByAbsris(absris string) error {
+	if absris == "" {
+		return errors.New("empty absris arguments")
+	}
 
-	absris = "'"+absris+"'"
-	q.Filter = _contain_absris + absris
-	
-	return
+	if q.filter != "" {
+		q.filter = ""
+	}
+
+	q.filter = containAbsris + "'" + absris + "'"
+	return nil
 }
 
-func (q *Q) FilterByNoPutAndAbsris(noput, absris string) {
-	if q.Filter != "" {q.Filter = ""}
+func (q *Query) FilterByNoPutAndAbsris(noput, absris string) error {
+	if noput == "" || absris == "" {
+		return errors.New("empty absris or noput arguments")
+	}
 
-	noput = "'"+noput+"'"
-	absris = "'"+absris+"'"
-	q.Filter = _contain_noput + noput + _and + _contain_absris + absris
-	
-	return
+	if q.filter != "" {
+		q.filter = ""
+	}
+
+	noput = "'" + noput + "'"
+	absris = "'" + absris + "'"
+	q.filter = containNoput + noput + and + containAbsris + absris
+	return nil
 }

@@ -13,15 +13,21 @@ go get github.com/coomico/go-tcd
 package main
 
 import (
+	"log"
+
 	"github.com/coomico/go-tcd"
 )
 
 func main() {
-	raw := tcd.New().FetchData()
+	raw, err := tcd.New().FetchData()
+	if err != nil {
+		panic(err)
+	}
+
 	raw.GetFileBulk()
 }
 ```
-Example [here](https://github.com/coomico/go-tcd/tree/main/_example).
+Another example [here](https://github.com/coomico/go-tcd/tree/main/_example).
 
 ## Reference
 
