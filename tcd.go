@@ -16,7 +16,10 @@ import (
 	"sync"
 )
 
-var UserAgent = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+var (
+	DirName   = "files"
+	UserAgent = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+)
 
 const (
 	baseUrl    = "https://setpp.kemenkeu.go.id"
@@ -80,7 +83,7 @@ func GetFile(id int) error {
 	var attempt int
 	var filename string
 
-	path := pathFiles()
+	dirPath := pathFiles()
 
 retry:
 	if attempt > 3 {
@@ -114,7 +117,7 @@ retry:
 
 	disp := resp.Header.Get("Content-Disposition")
 	filename = strings.Split(disp, "=")[1]
-	filepath := path + filename
+	filepath := dirPath + filename
 	file, err := os.Create(filepath)
 	if err != nil {
 		return err
@@ -139,6 +142,8 @@ func (r *Raw) GetFileBulk() error {
 	if amount == 0 {
 		return errors.New("empty data list")
 	}
+
+	pathFiles()
 
 	errCh := make(chan error, 1)
 	var wg sync.WaitGroup
@@ -171,11 +176,11 @@ func pathFiles() string {
 		panic(err)
 	}
 
-	path = path + "/files/"
+	path += "/" + DirName + "/"
 
 	_, err = os.Stat(path)
 	if err != nil && os.IsNotExist(err) {
-		if err = os.Mkdir("files", 0o755); err != nil {
+		if err = os.Mkdir(DirName, 0o755); err != nil {
 			panic(err)
 		}
 	}
