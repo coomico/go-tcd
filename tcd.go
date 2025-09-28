@@ -64,8 +64,8 @@ func (q *Query) FetchData() (*Raw, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("status response %s", resp.Status)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status response: %s", resp.Status)
 	}
 
 	var result Raw
@@ -112,8 +112,8 @@ retry:
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("status response %s", resp.Status)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status response: %s", resp.Status)
 	}
 
 	disp := resp.Header.Get("Content-Disposition")
