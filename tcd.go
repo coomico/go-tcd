@@ -21,6 +21,8 @@ var (
 	UserAgent = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
 )
 
+var client = &http.Client{}
+
 const (
 	baseUrl    = "https://setpp.kemenkeu.go.id"
 	risalahUrl = baseUrl + "/risalah"
@@ -57,7 +59,6 @@ func (q *Query) FetchData() (*Raw, error) {
 	req.Header.Set("User-Agent", UserAgent)
 	req.Close = true
 
-	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -105,7 +106,6 @@ retry:
 	req.Header.Set("User-Agent", UserAgent)
 	req.Close = true
 
-	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
